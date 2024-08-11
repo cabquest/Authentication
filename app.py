@@ -26,14 +26,14 @@ app.config['JWT_SECRET_KEY'] = os.environ['JWT_SECRET_KEY']
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
 app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=30)
 app.config['SECURITY_PASSWORD_SALT'] = os.environ['SECURITY_PASSWORD_SALT']
-# SQLAlchemy configuration
+
+
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://authentication:authentication@localhost:33067/authentication'
 # app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://authentication:authentication@host.docker.internal:33067/authentication'
-
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 app.config['SESSION_TYPE'] = 'filesystem' 
-# Mail configuration
+
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
@@ -123,15 +123,9 @@ def refresh():
 @app.route('/',methods=["GET"])
 def hello():
     users = User.query.all()
-    # user_list = [{'id': user.id, 'fullname': user.fullname, 'email': user.email, 'phone': user.phone,  'password':user.password, 'verified':user.KYC_verified } for user in users]
-    # users = Driver.query.filter_by(KYC_verified = False)
-    # users = Driver_verification.query.all()
-    # user_list = [{'id':user.id, 'license':user.license,'aadhar':user.aadhar,'pan_card':user.pan_card,'profile_pic':user.profile_pic,'driver_id':user.driver_id} for user in users]
-    # users = Vehicle_details.query.all()
     for i in users:
         db.session.delete(i)
         db.session.commit()
-    # user_list = [{'make': user.make, 'model': user.model, 'RC': user.RC, 'license_plate': user.license_plate,  'insurance':user.insurance,'vehicle_type_id':user.vehicle_type_id } for user in users]
     user_list = [{'id': user.id, 'fullname': user.fullname, 'email': user.email, 'phone': user.phone,  'password':user.password } for user in users]
     return jsonify(user_list)
 
@@ -275,7 +269,6 @@ def confirm_email(token):
         user.is_verified = True
         db.session.add(user)
         db.session.commit()
-        
         return redirect('http://localhost:3000/email_verified')
 
 @app.route('/driver_auth',methods=["POST"])
@@ -451,7 +444,6 @@ def verify_register():
     except:
         return jsonify({'message':'ok'})
     
-
 @app.route('/uploads/<fileName>', methods=['GET'])
 def download_file(fileName):
     print('yhello')
@@ -463,67 +455,88 @@ def download_file(fileName):
 
 @app.route('/accept',methods = ["POST"])
 def accept():
-    driver = Driver.query.filter_by(id = request.get_json()['id']).first()
-    driver.KYC_verified = True
-    db.session.commit()
-    vehicle = Vehicle_details.query.filter_by(driver_id = driver.id).first()
-    vehicle_type = Vehicle_type.query.filter_by(id = vehicle.vehicle_type_id).first()
-    user = {
-        'id':driver.id,
-        'fullname':driver.fullname, 
-        'email':driver.email, 
-        'phone':driver.phone, 
-        'role':'driver', 
-        'vehicle_type':vehicle_type.type,
-        'base_price':Decimal(vehicle_type.base_price), 
-        'base_distance_KM':vehicle_type.base_distance_KM, 
-        'price_per_km':Decimal(vehicle_type.price_per_km),
-        'make':vehicle.make,
-        'model':vehicle.model,
-        'license_plate':vehicle.license_plate,
+    try:
+        driver = Driver.query.filter_by(id = request.get_json()['id']).first()
+        driver.KYC_verified = True
+        db.session.commit()
+        vehicle = Vehicle_details.query.filter_by(driver_id = driver.id).first()
+        vehicle_type = Vehicle_type.query.filter_by(id = vehicle.vehicle_type_id).first()
+        user = {
+            'id':driver.id,
+            'fullname':driver.fullname, 
+            'email':driver.email, 
+            'phone':driver.phone, 
+            'role':'driver', 
+            'vehicle_type':vehicle_type.type,
+            'base_price':Decimal(vehicle_type.base_price), 
+            'base_distance_KM':vehicle_type.base_distance_KM, 
+            'price_per_km':Decimal(vehicle_type.price_per_km),
+            'make':vehicle.make,
+            'model':vehicle.model,
+            'license_plate':vehicle.license_plate,
+            }
+        publish_message('Booking',user)
+        user2 = {
+            'id':driver.id,
+            'fullname':driver.fullname, 
+            'email':driver.email, 
+            'phone':driver.phone, 
+            'role':'driver', 
         }
-    publish_message('Booking',user)
-    user2 = {
-        'id':driver.id,
-        'fullname':driver.fullname, 
-        'email':driver.email, 
-        'phone':driver.phone, 
-        'role':'driver', 
-    }
-    publish_message('ride',user2)
-    publish_message('communication',user2)
-    return jsonify({'message':'ok'})
+        publish_message('ride',user2)
+        publish_message('communication',user2)
+        return jsonify({'message':'ok'})
+    except:
+        return jsonify({'message':'error'})
 
 @app.route('/drivers',methods = ["GET"])
 def drivers():
-    driver = Driver.query.filter_by(KYC_verified = True)
-    user_list = [{'id': user.id, 'fullname': user.fullname, 'email': user.email, 'phone': user.phone,  'status':user.status,} for user in driver]
-    return jsonify(user_list)
+    try:
+        driver = Driver.query.filter_by(KYC_verified = True)
+        user_list = [{'id': user.id, 'fullname': user.fullname, 'email': user.email, 'phone': user.phone,  'status':user.status,} for user in driver]
+        return jsonify(user_list)
+    except:
+        return jsonify({'message':'error'})
+
+@app.route('/users',methods = ["GET"])
+def users():
+    try:
+        users = User.query.all()
+        user_list = [{'id': user.id, 'fullname': user.fullname, 'email': user.email, 'phone': user.phone} for user in users]
+        return jsonify(user_list)
+    except:
+        return jsonify({'message':'error'})
 
 @app.route('/searchdriver', methods = ["POST"])
 def searchdriver():
-    data = request.get_json()
-    val = data['val']
-    drivers = Driver.query.filter(
-        Driver.KYC_verified == True,
-        Driver.fullname.startswith(f'{val}')
-    ).all()
-    user_list = [{'id': user.id, 'fullname': user.fullname, 'email': user.email, 'phone': user.phone,  'status':user.status,} for user in drivers]
-    return jsonify(user_list)
+    try:
+        data = request.get_json()
+        val = data['val']
+        drivers = Driver.query.filter(
+            Driver.KYC_verified == True,
+            Driver.fullname.startswith(f'{val}')
+        ).all()
+        user_list = [{'id': user.id, 'fullname': user.fullname, 'email': user.email, 'phone': user.phone,  'status':user.status,} for user in drivers]
+        return jsonify(user_list)
+    except:
+        return jsonify({'message':'error'})
 
 
 @app.route('/admin',methods=["POST"])
 def admin():
-    data = request.get_json()
-    fullname = data['fullname']
-    email = data['email']
-    phone = data['phone']
-    password = data['password']
-    hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
-    admin = Admin(fullname = fullname, email = email, phone = phone, password = hashed_password)
-    db.session.add(admin)
-    db.session.commit()
-    return jsonify({'message':'added successfully'})
+    try:
+        data = request.get_json()
+        fullname = data['fullname']
+        email = data['email']
+        phone = data['phone']
+        password = data['password']
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+        admin = Admin(fullname = fullname, email = email, phone = phone, password = hashed_password)
+        db.session.add(admin)
+        db.session.commit()
+        return jsonify({'message':'added successfully'})
+    except:
+        return jsonify({'message':'error'})
 
 @app.route('/admin_login',methods = ["POST"])
 def admin_login():
@@ -605,15 +618,38 @@ def makeinactive():
 
 @app.route('/driveaccept',methods = ["POST"])
 def driveaccept():
-    data = request.get_json()
-    email = data['email']
-    driver = Driver.query.filter_by(email = email).first()
-    driver.status = 'onwork'
-    db.session.commit()
-    message = {'email':email,'role':'onwork'}
-    publish_message('Booking',message)
+    try:
+        data = request.get_json()
+        email = data['email']
+        driver = Driver.query.filter_by(email = email).first()
+        driver.status = 'onwork'
+        db.session.commit()
+        message = {'email':email,'role':'onwork'}
+        publish_message('Booking',message)
+        return jsonify({'message':'ok'})
+    except:
+        return jsonify({'message':'error'})
 
-    return jsonify({'message':'ok'})
+@app.route('/makeactive2',methods = ["POST"])
+def makeactive2():
+    try:
+        data = request.get_json()
+        driver = Driver.query.filter_by(id = data['driverid']).first()
+        driver.status = 'active'
+        db.session.commit()
+        return jsonify({'message':'ok'})
+    except:
+        return jsonify({'message':'error'})
+
+@app.route('/allvehicles', methods = ["GET"])
+def allvehicles():
+    try:
+        vehicles = Vehicle_type.query.all()
+        vehicle_list = [vehicle.type for vehicle in vehicles]
+        vehicle_type_obj = [{'id':0, 'type': vehicle_type} for vehicle_type in vehicle_list]
+        return jsonify({'message':'ok','vehicles':vehicle_type_obj})
+    except:
+        return jsonify({'message':'error'})
 
 if __name__ == '__main__':
     app.run(debug=True, host="0.0.0.0", port=9639)
