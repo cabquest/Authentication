@@ -29,7 +29,7 @@ app.config['SECURITY_PASSWORD_SALT'] = os.environ['SECURITY_PASSWORD_SALT']
 
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://authentication:authentication@localhost:33067/authentication'
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://authentication:authentication@host.docker.internal:33067/authentication'
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:root_password@mysql.mysql.svc.cluster.local:3306/authentication'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 app.config['SESSION_TYPE'] = 'filesystem' 
@@ -54,6 +54,7 @@ jwt = JWTManager(app)
 db.init_app(app)
 jwt.init_app(app)
 CORS(app, supports_credentials=True)
+#, resources={r"/auth/*": {"origins": "https://www.cabquest.quest"}}
 mail = Mail(app)
 Session(app)
 
@@ -264,12 +265,14 @@ def confirm_email(token):
         return jsonify({"message": "The confirmation link is invalid or has expired."}), 400
     user = Driver.query.filter_by(email=email).first_or_404()
     if user.is_verified:
+        # return redirect('https://cabquest.quest/login_driver')
         return redirect('http://localhost:3000/login_driver')
     else:
         user.is_verified = True
         db.session.add(user)
         db.session.commit()
         return redirect('http://localhost:3000/email_verified')
+        # return redirect('https://cabquest.quest/email_verified')
 
 @app.route('/driver_auth',methods=["POST"])
 def driver_login():
