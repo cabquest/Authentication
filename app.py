@@ -15,6 +15,8 @@ from datetime import timedelta
 from werkzeug.utils import secure_filename
 from rabbitmq_producer import publish_message
 from decimal import Decimal
+import boto3
+from botocore.exceptions import NoCredentialsError
 
 load_dotenv()
 
@@ -57,6 +59,18 @@ CORS(app, supports_credentials=True)
 #, resources={r"/auth/*": {"origins": "https://www.cabquest.quest"}}
 mail = Mail(app)
 Session(app)
+
+S3_BUCKET = os.environ['S3_BUCKET']
+S3_ACCESS_KEY = os.environ['S3_ACCESS_KEY']
+S3_SECRET_KEY = os.environ['S3_SECRTET_KEY']
+S3_REGION = os.environ['S3_REGION']
+
+s3 = boto3.client(
+    's3',
+    aws_access_key_id=S3_ACCESS_KEY,
+    aws_secret_access_key=S3_SECRET_KEY,
+    region_name=S3_REGION
+)
 
 
 def generate_confirmation_token(email):
@@ -305,24 +319,83 @@ def driver_login():
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@app.route('/driver_kyc',methods=["POST"])
+# @app.route('/driver_kyc',methods=["POST"])
+# def driver_kyc():
+#     form_data = request.files
+#     email = request.form
+#     print('form_data  ',form_data )
+#     print(email.get('email'))
+
+#     try:
+#         user = Driver.query.filter_by(email = email.get('email')).first()
+#     except:
+#         return jsonify({'message':'user not available try login once again'})
+    
+#     try:
+#         driver = Driver_verification.query.filter_by(driver_id = user.id).first()
+#         if driver:
+#             return jsonify({'message':'details already recorded'})
+#     except:
+#         pass
+
+#     try:
+#         files = request.files.to_dict()
+#         saved_files = {}
+#         for key, file in files.items():
+#             if file and allowed_file(file.filename):
+#                 filename = secure_filename(file.filename)
+#                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+#                 file.save(file_path)
+#                 saved_files[key] = file_path
+#             else:
+#                 return jsonify({'message':f'{filename} not allowed'})
+        
+#         verification_data = Driver_verification(
+#             license=saved_files.get('Driving License', ''),
+#             aadhar=saved_files.get('Aadhar Card', ''),
+#             pan_card=saved_files.get('PAN Card', ''),
+#             profile_pic=saved_files.get('Profile Photo', ''),
+#             driver_id=user.id
+#         )
+
+#         vehicle_data = Vehicle_details(
+#             RC = saved_files.get("Registration Certificate (RC)", ''),
+#             insurance = saved_files.get('Insurance', ''),
+#             driver_id = user.id
+#         )
+
+#         db.session.add(verification_data)
+#         db.session.add(vehicle_data)
+#         db.session.commit()
+
+#     except Exception as e:
+#         db.session.rollback()
+#         return jsonify({'message': 'Server error, try again later', 'error': str(e)})
+
+#     return jsonify({'message':'files successfully uploaded'})
+
+@app.route('/driver_kyc', methods=["POST"])
 def driver_kyc():
-    form_data = request.form.to_dict()
-    email = form_data.get('email')
-    print(form_data)
-    print(email)
+    form_data = request.files
+    email = request.form
+    print('form_data  ', form_data)
+    print(email.get('email'))
 
     try:
-        user = Driver.query.filter_by(email = email).first()
-    except:
-        return jsonify({'message':'user not available try login once again'})
-    
+        user = Driver.query.filter_by(email=email.get('email')).first()
+        if not user:
+            return jsonify({'message': 'User not available. Please log in again.'}), 404
+    except Exception as e:
+        print(e)
+        return jsonify({'message': 'Error fetching user', 'error': str(e)}), 500
+
     try:
-        driver = Driver_verification.query.filter_by(driver_id = user.id).first()
+        driver = Driver_verification.query.filter_by(driver_id=user.id).first()
         if driver:
-            return jsonify({'message':'details already recorded'})
-    except:
-        pass
+            return jsonify({'message': 'Details already recorded'}), 400
+    except Exception as e:
+        print(e)
+        return jsonify({'message': 'Error checking driver verification', 'error': str(e)}), 500
 
     try:
         files = request.files.to_dict()
@@ -330,12 +403,25 @@ def driver_kyc():
         for key, file in files.items():
             if file and allowed_file(file.filename):
                 filename = secure_filename(file.filename)
-                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(file_path)
-                saved_files[key] = file_path
+                s3_key = f"drivers/{user.id}/{filename}" 
+
+                try:
+                    s3.upload_fileobj(
+                        file,
+                        S3_BUCKET,
+                        s3_key,
+                    )
+                    file_url = f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com/{s3_key}"
+                    saved_files[key] = file_url
+                except NoCredentialsError:
+                    print('418')
+                    return jsonify({'message': 'S3 credentials not available'}), 500
+                except Exception as e:
+                    print('420 ',e)
+                    return jsonify({'message': 'Error uploading to S3', 'error': str(e)}), 500
             else:
-                return jsonify({'message':f'{filename} not allowed'})
-        
+                return jsonify({'message': f'{filename} not allowed'}), 400
+
         verification_data = Driver_verification(
             license=saved_files.get('Driving License', ''),
             aadhar=saved_files.get('Aadhar Card', ''),
@@ -345,9 +431,9 @@ def driver_kyc():
         )
 
         vehicle_data = Vehicle_details(
-            RC = saved_files.get("Registration Certificate (RC)", ''),
-            insurance = saved_files.get('Insurance', ''),
-            driver_id = user.id
+            RC=saved_files.get("Registration Certificate (RC)", ''),
+            insurance=saved_files.get('Insurance', ''),
+            driver_id=user.id
         )
 
         db.session.add(verification_data)
@@ -356,9 +442,9 @@ def driver_kyc():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({'message': 'Server error, try again later', 'error': str(e)})
+        return jsonify({'message': 'Server error, try again later', 'error': str(e)}), 500
 
-    return jsonify({'message':'files successfully uploaded'})
+    return jsonify({'message': 'Files successfully uploaded'}), 200
 
 @app.route('/vehicle',methods=['POST','GET'])
 def vehicle():
@@ -617,7 +703,7 @@ def makeinactive():
         publish_message('Booking',message)
         return jsonify({'message':'ok'})
     except:
-        return jsonify({'message':'error'})
+        return jsonify({'message':'ok'})
 
 @app.route('/driveaccept',methods = ["POST"])
 def driveaccept():
