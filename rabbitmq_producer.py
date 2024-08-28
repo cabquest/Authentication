@@ -2,8 +2,7 @@ import pika
 import json
 from decimal import Decimal
 
-rabbitmq_host = 'localhost' 
-# rabbitmq_host = 'rabbitmq.rabbitmq.svc.cluster.local' 
+rabbitmq_host = 'rabbitmq.rabbitmq.svc.cluster.local' 
 rabbitmq_port = 5672
 rabbitmq_user = 'guest'  
 rabbitmq_password = 'guest'

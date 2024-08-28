@@ -30,8 +30,8 @@ app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=30)
 app.config['SECURITY_PASSWORD_SALT'] = os.environ['SECURITY_PASSWORD_SALT']
 
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://authentication:authentication@localhost:33067/authentication'
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:root_password@mysql.mysql.svc.cluster.local:3306/authentication'
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://cabquest:cabquest@db.cabquest.quest:3306/authentication'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:root_password@mysql.mysql.svc.cluster.local:3306/authentication'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 app.config['SESSION_TYPE'] = 'filesystem' 
@@ -318,62 +318,7 @@ def driver_login():
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-# @app.route('/driver_kyc',methods=["POST"])
-# def driver_kyc():
-#     form_data = request.files
-#     email = request.form
-#     print('form_data  ',form_data )
-#     print(email.get('email'))
-
-#     try:
-#         user = Driver.query.filter_by(email = email.get('email')).first()
-#     except:
-#         return jsonify({'message':'user not available try login once again'})
     
-#     try:
-#         driver = Driver_verification.query.filter_by(driver_id = user.id).first()
-#         if driver:
-#             return jsonify({'message':'details already recorded'})
-#     except:
-#         pass
-
-#     try:
-#         files = request.files.to_dict()
-#         saved_files = {}
-#         for key, file in files.items():
-#             if file and allowed_file(file.filename):
-#                 filename = secure_filename(file.filename)
-#                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-#                 file.save(file_path)
-#                 saved_files[key] = file_path
-#             else:
-#                 return jsonify({'message':f'{filename} not allowed'})
-        
-#         verification_data = Driver_verification(
-#             license=saved_files.get('Driving License', ''),
-#             aadhar=saved_files.get('Aadhar Card', ''),
-#             pan_card=saved_files.get('PAN Card', ''),
-#             profile_pic=saved_files.get('Profile Photo', ''),
-#             driver_id=user.id
-#         )
-
-#         vehicle_data = Vehicle_details(
-#             RC = saved_files.get("Registration Certificate (RC)", ''),
-#             insurance = saved_files.get('Insurance', ''),
-#             driver_id = user.id
-#         )
-
-#         db.session.add(verification_data)
-#         db.session.add(vehicle_data)
-#         db.session.commit()
-
-#     except Exception as e:
-#         db.session.rollback()
-#         return jsonify({'message': 'Server error, try again later', 'error': str(e)})
-
-#     return jsonify({'message':'files successfully uploaded'})
-
 @app.route('/driver_kyc', methods=["POST"])
 def driver_kyc():
     form_data = request.files
